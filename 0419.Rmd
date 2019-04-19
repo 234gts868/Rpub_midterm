@@ -1,5 +1,5 @@
 ---
-title: "group 14"
+title: "group 14_midterm"
 output: html_document
 ---
 
@@ -9,16 +9,14 @@ library(dplyr)
 library(ggplot2)
 
 
-customer <- read_csv("Downloads/brazilian-ecommerce/olist_customers_dataset.csv")
-#geolocation<-read_csv("Downloads/brazilian-ecommerce/olist_geolocation_dataset.csv")
-item<-read_csv("Downloads/brazilian-ecommerce/olist_order_items_dataset.csv")
-#order_payments<-read_csv("Downloads/brazilian-ecommerce/olist_order_payments_dataset.csv")
-review<-read_csv("Downloads/brazilian-ecommerce/olist_order_reviews_dataset.csv")         
-order<-read_csv("Downloads/brazilian-ecommerce/olist_orders_dataset.csv")
-product<-read_csv("Downloads/brazilian-ecommerce/olist_products_dataset.csv")
-seller<-read_csv("Downloads/brazilian-ecommerce/olist_sellers_dataset.csv")
-translation<-read_csv("Downloads/brazilian-ecommerce/product_category_name_translation.csv")
-lead<-read_csv("Downloads/marketing-funnel-olist/olist_closed_deals_dataset.csv")
+customer <- read_csv("data/olist_customers_dataset.csv")
+item <- read_csv("data/olist_order_items_dataset.csv")
+review <- read_csv("data/olist_order_reviews_dataset.csv")         
+order <- read_csv("data/olist_orders_dataset.csv")
+product <-read_csv("data/olist_products_dataset.csv")
+seller <-read_csv("data/olist_sellers_dataset.csv")
+translation <-read_csv("data/product_category_name_translation.csv")
+lead <-read_csv("data/olist_closed_deals_dataset.csv")
 review$review_score = as.factor(review$review_score)
  
 # ORIS<- merge(products,order_items,by= "product_id")
@@ -34,11 +32,8 @@ review$review_score = as.factor(review$review_score)
 
 ```
 
-###對延遲訂單的簡單分析
-- 清除刪除重複訂單的日期
 
-```{r}
-
+```{r,include=FALSE}
 ORIS = order %>%
   inner_join(review) %>%
   inner_join(item) %>%
@@ -46,6 +41,7 @@ ORIS = order %>%
 ```
 
 
+>對延遲訂單的簡單分析
 
 - 比較估計的交付天數和交付的實際天數
 ```{r}
@@ -53,40 +49,36 @@ ORIS$delaydays=
   difftime(as.Date(ORIS$order_delivered_customer_date,na.rm=TRUE),
            as.Date(ORIS$order_estimated_delivery_date,na.rm=TRUE),units = "days")
 
-
-```
-- 每個州的分析
-
-- 估計均值，標準差和方差
-```{r}
 ORIS = ORIS %>%
   filter(!is.na(delaydays))
 
+```
+
+- 估計均值，標準差和方差
+```{r,warning=FALSE}
 mean(ORIS$delaydays)
 sd(ORIS$delaydays)
 ggplot(ORIS ,aes(delaydays)) +
-  geom_histogram()
+  geom_histogram(bins = 30) + xlim(-100,100)
 
 # 7294 delay
 table(ORIS$delaydays>0)
 ```
-- 檢查關鍵狀態
 - 以月為單位檢查行為
 
-`三月延遲訂單數最多`
 ```{r,message=FALSE}
 library(lubridate)
 ORIS$delay=ORIS$delaydays>0   #delay or not   
 ORIS$order_purchase_timestamp=as.Date(ORIS$order_purchase_timestamp,na.rm=TRUE)
 
 ggplot(ORIS, aes(month(ORIS$order_purchase_timestamp), fill =delay )) + geom_bar()
-
 ```
+**3和11月延遲訂單數最多**
 
 
 
-3 ,11 month delay analysis
-```{r}
+- 3 ,11 month delay analysis
+```{r,include=FALSE}
 
 ORIS%>%
   filter(month(ORIS$order_purchase_timestamp)==c(3,11))
@@ -98,7 +90,7 @@ ORIS%>%
 
 ```
 
-```{r}
+```{r,message=FALSE}
 ORIP = order %>%
   inner_join(review) %>%
   inner_join(item) %>%
@@ -125,11 +117,7 @@ ggplot(aes(product_category_name_english,fill =delay)) +
 ```
 
 
-####當公司知道會出現一些問題（例如在2018年3月）以避免一些損失和客戶的挫折時，可以使用這些估計的天數。
-
-
-
-
+- delay天數跟review_score之間的關係
 ```{r}
 ORIS$delaydays = as.numeric(ORIS$delaydays)
 
