@@ -7,7 +7,9 @@ output: html_document
 library(readr)
 library(dplyr)
 library(ggplot2)
-
+library(tidyr)
+library(d3heatmap)
+library(googleVis)
 
 customer <- read_csv("data/olist_customers_dataset.csv")
 item <- read_csv("data/olist_order_items_dataset.csv")
@@ -75,6 +77,18 @@ ggplot(ORIS, aes(month(ORIS$order_purchase_timestamp), fill =delay )) + geom_bar
 ```
 **3和11月延遲訂單數最多**
 
+```{r}
+
+delay_data  = ORIS %>%
+  select(order_purchase_timestamp) 
+delay_data$month=format(delay_data$order_purchase_timestamp,'%Y%m') 
+delay_data$day=format(delay_data$order_purchase_timestamp,'%d') 
+
+table(as.numeric(delay_data$month),as.numeric(delay_data$day)) %>%as.data.frame.matrix %>% 
+  {log(.+1)} %>%  
+  d3heatmap(F,F,color=cm.colors(17))
+
+```
 
 
 - 3 ,11 month delay analysis
@@ -98,7 +112,7 @@ ORIP = order %>%
   inner_join(translation) %>%
   left_join(ORIS,by ="order_id")
 ```
-
+##畫 類別 然後 有星星的 X 軸是年月日  延遲訂單的天數 預計到達的天數
 
 ```{r}
 
