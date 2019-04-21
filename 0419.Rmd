@@ -115,12 +115,23 @@ ORIP = order %>%
 ##畫 類別 然後 有星星的 X 軸是年月日  延遲訂單的天數 預計到達的天數
 
 ```{r}
+count(ORIP,product_category_name_english,delay) %>%  
+  filter(product_category_name_english=='baby')
+```
 
+
+```{r}
 sort(table(ORIP$product_category_name_english),decreasing = T)
 ORIP%>%
-  group_by(product_category_name_english)%>%
-ggplot(aes(product_category_name_english,fill =delay)) +
-  geom_bar()+ 
+  filter(!is.na(delay)) %>%
+  group_by(product_category_name_english)%>% 
+  summarise(
+    ratio=sum(delay)/n()
+  ) %>%  
+  top_n(10) %>%
+  mutate(new_x=reorder(product_category_name_english,ratio)) %>% 
+ggplot(aes(new_x,ratio)) +
+  geom_bar(stat='identity',fill = "steelblue")+ 
   coord_flip()
 
 
@@ -174,3 +185,10 @@ ORIS_nodelay%>%
             show.legend = FALSE)
 
 ```
+
+### 使用翻譯完的留言資料做分析
+```{r}
+library(data.table)
+library(wordcloud2)
+```
+
