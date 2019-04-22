@@ -75,7 +75,7 @@ ORIS$order_purchase_timestamp=as.Date(ORIS$order_purchase_timestamp,na.rm=TRUE)
 
 ggplot(ORIS, aes(month(ORIS$order_purchase_timestamp), fill =delay )) + geom_bar()
 ```
-**3和11月延遲訂單數最多**
+**由上圖可見，3和11月延遲訂單數最多**
 
 ```{r}
 
@@ -90,19 +90,10 @@ table(as.numeric(delay_data$month),as.numeric(delay_data$day)) %>%as.data.frame.
 
 ```
 
+## 3 ,11 month delay analysis
 
-- 3 ,11 month delay analysis
-```{r,include=FALSE}
+##畫 類別 然後 有星星的 X 軸是年月日  延遲訂單的天數 預計到達的天數
 
-ORIS%>%
-  filter(month(ORIS$order_purchase_timestamp)==c(3,11))
-
-
-
-
-
-
-```
 
 ```{r,message=FALSE}
 ORIP = order %>%
@@ -112,16 +103,15 @@ ORIP = order %>%
   inner_join(translation) %>%
   left_join(ORIS,by ="order_id")
 ```
-##畫 類別 然後 有星星的 X 軸是年月日  延遲訂單的天數 預計到達的天數
 
 ```{r}
 count(ORIP,product_category_name_english,delay) %>%  
   filter(product_category_name_english=='baby')
 ```
 
-
+###↓↓↓這邊結果不同＠＠
 ```{r}
-sort(table(ORIP$product_category_name_english),decreasing = T)
+#sort(table(ORIP$product_category_name_english),decreasing = T)
 ORIP%>%
   filter(!is.na(delay)) %>%
   group_by(product_category_name_english)%>% 
@@ -134,10 +124,20 @@ ggplot(aes(new_x,ratio)) +
   geom_bar(stat='identity',fill = "steelblue")+ 
   coord_flip()
 
+######
+library(forcats)
 
-# draw a order plot by category
-# topn =10
-# by money ?
+ORIP%>%
+  group_by(product_category_name_english)%>%
+  summarise(n=n()) %>% 
+  arrange( desc(n) )%>%
+  head(10)%>%
+  inner_join(ORIP)%>%
+  ggplot(aes(fct_rev(fct_infreq (product_category_name_english)),fill=delay)) +
+  geom_bar()+ 
+  coord_flip()
+
+
 
 ```
 
@@ -186,7 +186,8 @@ ORIS_nodelay%>%
 
 ```
 
-### 使用翻譯完的留言資料做分析
+>使用review資料做分析
+
 ```{r message=FALSE, warning=FALSE}
 library(tidytext)
 library(data.table)
@@ -196,7 +197,10 @@ library(tm)
 library(wordcloud2)
 ```
 
-```{r}
+
+- 用出現頻率最高的字 draw a texplot wordcloud
+
+```{r message=FALSE}
 review_tran_m = review_tran %>%
   select(translate_message)
 
@@ -227,8 +231,10 @@ review_tran_conut %>%
   filter(n >200) %>%
   wordcloud2()
 ```
-#draw a texplot wordcloud
-```{r}
+
+
+
+```{r,warning=FALSE}
 library(tm)
 library(stringr)
 dtm =review_tran$translate_message %>% 
@@ -244,7 +250,7 @@ dtm =review_tran$translate_message %>%
 dtm  # (documents: 14156, terms: 1030)
 dtm_tmp=dtm
 ```
-```{r}
+```{r,message=FALSE}
 library(slam)
 tfidf = tapply(dtm$v/row_sums(dtm)[dtm$i], dtm$j, mean) *
   log2(nrow(dtm)/col_sums(dtm > 0))
