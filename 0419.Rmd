@@ -20,7 +20,7 @@ seller <-read_csv("data/olist_sellers_dataset.csv")
 translation <-read_csv("data/product_category_name_translation.csv")
 lead <-read_csv("data/olist_closed_deals_dataset.csv")
 review$review_score = as.factor(review$review_score)
- 
+review_tran <- read_csv("data/olist_order_reviews_dataset_translated.csv")
 # ORIS<- merge(products,order_items,by= "product_id")
 # ORIS <- merge(ORIS ,order_reviews,by= "order_id")
 # ORIS <- merge(ORIS,translation,by= "product_category_name")
@@ -169,13 +169,13 @@ ggplot(aes(binwidth, fill=review_score)) +
 ## 
 ORIS_nodelay=ORIS %>%
   filter(delaydays <0)%>%
-  mutate( binwidth = delaydays %/% 5 )
+  mutate( binwidth = delaydays %/% 10 )
 
 
 ORIS_nodelay%>%
   ggplot(aes(binwidth, fill=review_score)) +
   geom_bar(position = 'fill') +
-  geom_text(data = . %>% 
+  geom_text(size = 3,data = . %>% 
               group_by(binwidth, review_score) %>%
               tally() %>%
               mutate(p = n / sum(n)) %>%
@@ -187,8 +187,107 @@ ORIS_nodelay%>%
 ```
 
 ### 使用翻譯完的留言資料做分析
-```{r}
+```{r message=FALSE, warning=FALSE}
+library(tidytext)
 library(data.table)
+library(tidyr)
+library(ggplot2)
+library(tm)
 library(wordcloud2)
+```
+
+```{r}
+review_tran_m = review_tran %>%
+  select(translate_message)
+
+colnames(review_tran_m) = "text"
+
+data(stop_words) #add stop word
+
+review_tran_conut =review_tran_m%>%
+  filter(!is.na(text))%>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words) %>%
+  count(word,sort=T)
+  
+review_tran_conut$word = removeNumbers(review_tran_conut$word)
+review_tran_conut = review_tran_conut %>% 
+  filter(!word =="")
+
+
+review_tran_conut %>%
+  top_n(10) %>%  # find top 10
+  mutate(word = reorder(word, n)) %>%  
+  ggplot(aes(word, n)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip()
+
+review_tran_conut %>%
+  filter(n >200) %>%
+  wordcloud2()
+```
+#draw a texplot wordcloud
+```{r}
+library(tm)
+library(stringr)
+dtm =review_tran$translate_message %>% 
+  iconv(to = "utf-8", sub="") %>% 
+  str_trim(.) %>%
+  toupper() %>%
+  VectorSource %>% Corpus %>% 
+  tm_map(content_transformer(tolower)) %>% 
+  tm_map(removePunctuation) %>% 
+  tm_map(stemDocument) %>% 
+  DocumentTermMatrix %>% 
+  removeSparseTerms(0.998)
+dtm  # (documents: 14156, terms: 1030)
+dtm_tmp=dtm
+```
+```{r}
+library(slam)
+tfidf = tapply(dtm$v/row_sums(dtm)[dtm$i], dtm$j, mean) *
+  log2(nrow(dtm)/col_sums(dtm > 0))
+summary(tfidf)
+
+dtm=dtm_tmp
+dtm = dtm[, tfidf > 0.24 ]
+dtm = dtm[,order(-col_sums(dtm))]
+dim(dtm)
+```
+
+
+
+```{r}
+library(Rtsne)
+n = 200
+tsne = dtm[, 1:n] %>% as.data.frame.matrix %>% 
+  scale %>% t %>% Rtsne(
+    check_duplicates = FALSE, theta=0.0, max_iter=3200)
+```
+
+```{r}
+Y = tsne$Y              # tSNE coordinates
+d = dist(Y)             # distance matrix
+hc = hclust(d)          # hi-clustering
+K = 20              # number of clusters 
+g = cutree(hc,K)        # cut into K clusters
+table(g) %>% as.vector %>% sort         # sizes of clusters
+```
+
+```{r}
+# install.packages('randomcoloR')
+library(randomcoloR)
+library(wordcloud)
+library(slam)
+wc = col_sums(dtm[,1:n])
+colors = distinctColorPalette(K)
+png("./olist.png", width=3200, height=1800)
+textplot(
+  Y[,1], Y[,2], colnames(dtm)[1:n], show=F, 
+  col=colors[g],
+  cex= 3 + 1.25 * sqrt(wc/mean(wc)),
+  font=2)
+dev.off()
 ```
 
