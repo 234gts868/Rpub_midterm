@@ -231,10 +231,12 @@ review_tran_conut %>%
   filter(n >200) %>%
   wordcloud2()
 ```
+<<<<<<< HEAD
 
-
+#draw a texplot wordcloud
 
 ```{r,warning=FALSE}
+#>>>>>>> 20e75f48e910e15b9715e0d79dd2891bbcbfcfc1
 library(tm)
 library(stringr)
 dtm =review_tran$translate_message %>% 
@@ -261,9 +263,6 @@ dtm = dtm[, tfidf > 0.24 ]
 dtm = dtm[,order(-col_sums(dtm))]
 dim(dtm)
 ```
-
-
-
 ```{r}
 library(Rtsne)
 n = 200
@@ -271,7 +270,6 @@ tsne = dtm[, 1:n] %>% as.data.frame.matrix %>%
   scale %>% t %>% Rtsne(
     check_duplicates = FALSE, theta=0.0, max_iter=3200)
 ```
-
 ```{r}
 Y = tsne$Y              # tSNE coordinates
 d = dist(Y)             # distance matrix
@@ -279,6 +277,7 @@ hc = hclust(d)          # hi-clustering
 K = 20              # number of clusters 
 g = cutree(hc,K)        # cut into K clusters
 table(g) %>% as.vector %>% sort         # sizes of clusters
+
 ```
 
 ```{r}
@@ -297,3 +296,45 @@ textplot(
 dev.off()
 ```
 
+
+
+### googlevis
+```{r}
+ORISI  =ORIS %>%
+  na.omit() %>%
+  inner_join(product,by="product_id") %>%
+  inner_join(translation)
+
+op = options(gvis.plot.tag='chart')
+#m1 = gvisMotionChart(
+#  ORISI, "product_category_name_english", "order_purchase_timestamp",
+#  options=list(width=720, height=480) )
+#plot(m1)
+```
+
+
+
+
+>訂單時間分佈
+
+```{r}
+
+ORIP$weekday<- weekdays(ORIP$order_purchase_timestamp.x)%>%
+  factor(levels= c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"))
+
+ORIP$hour<- hour(ORIP$order_purchase_timestamp.x)
+
+dailyOrder <- as.data.frame(table(ORIP$weekday, ORIP$hour))
+names(dailyOrder) <- c('Day', 'Hour', 'Freq')
+
+#Plotting the number of orders each day 
+
+ggplot(dailyOrder, aes(x = Hour, y = Freq)) + 
+  geom_line(aes(group = Day, color = Day))+
+  xlab('Hour') + ylab('Number of Order') + 
+  ggtitle('Daily number of Order')
+
+
+```
+
+**訂單分佈在平日的上班時間**
