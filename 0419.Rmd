@@ -39,8 +39,83 @@ review_tran <- read_csv("data/olist_order_reviews_dataset_translated.csv")
 ORIS = order %>%
   inner_join(review) %>%
   inner_join(item) %>%
-  inner_join(seller)
+  inner_join(seller) %>%
+  inner_join(product) %>%
+  inner_join(translation)
 ```
+
+>訂單分析
+
+- 訂單數量
+```{r,message=FALSE}
+library(lubridate)
+day=as.Date(order$order_purchase_timestamp)
+hist(day,"month",main ="Number of orders per month",
+     las=2,freq=T,xlab='',ylab='count',col ="#ededb1")
+
+```
+`訂單數量逐漸成長`
+
+- 每日訂單時間分佈
+
+```{r,message=FALSE}
+
+ggplot(ORIS, aes(as.factor(month(ORIS$order_purchase_timestamp)))) + geom_bar()+
+  labs(x = "month")+
+  ggtitle('每月訂單時間分佈')+
+  theme(plot.title=element_text(family = "STHeiti"))
+
+```
+
+
+
+
+- 每日訂單時間分佈
+
+```{r}
+weekday<- weekdays(order$order_purchase_timestamp)%>%
+  factor(levels= c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"))
+
+hour<- hour(order$order_purchase_timestamp)
+
+dailyOrder <- as.data.frame(table(weekday, hour))
+names(dailyOrder) <- c('Day', 'Hour', 'Freq')
+
+#Plotting the number of orders each day 
+
+ggplot(dailyOrder, aes(x = Hour, y = Freq)) + 
+  geom_line(aes(group = Day, color = Day))+
+  xlab('Hour') + ylab('Number of Order') + 
+  ggtitle('每日訂單時間趨勢')+
+  theme(plot.title=element_text(family = "STHeiti"))
+
+
+```
+
+`訂單分佈在平日的上班時間`
+
+- 商品訂購數量排行
+```{r,message=FALSE}
+#sort(table(ORIS$product_category_name_english),decreasing = T)
+
+library(forcats)
+
+ORIS%>%
+  group_by(product_category_name_english)%>%
+  summarise(n=n()) %>% 
+  arrange( desc(n) )%>%
+  head(10)%>%
+  inner_join(ORIS)%>%
+  ggplot(aes(fct_rev(fct_infreq (product_category_name_english)),fill=product_category_name_english)) +
+  geom_bar()+
+  labs(x = " ",y = "Number of order")+
+  ggtitle("商品熱門排行")+ 
+  guides(fill=FALSE)+
+  theme(plot.title=element_text(family = "STHeiti"))+
+  coord_flip()
+```
+
+
 
 
 >對延遲訂單的簡單分析
@@ -61,7 +136,9 @@ ORIS = ORIS %>%
 mean(ORIS$delaydays)
 sd(ORIS$delaydays)
 ggplot(ORIS ,aes(delaydays)) +
-  geom_histogram(bins = 30) + xlim(-100,100)
+  geom_histogram(bins = 30) + xlim(-100,100)+
+  ggtitle('延遲天數概覽')+
+  theme(plot.title=element_text(family = "STHeiti"))
 
 # 7294 delay
 table(ORIS$delaydays>0)
@@ -69,14 +146,18 @@ table(ORIS$delaydays>0)
 - 以月為單位檢查行為
 
 ```{r,message=FALSE}
-library(lubridate)
+
 ORIS$delay=ORIS$delaydays>0   #delay or not   
 ORIS$order_purchase_timestamp=as.Date(ORIS$order_purchase_timestamp,na.rm=TRUE)
 
-ggplot(ORIS, aes(month(ORIS$order_purchase_timestamp), fill =delay )) + geom_bar()
+ggplot(ORIS, aes(as.factor(month(ORIS$order_purchase_timestamp)), fill =delay )) + geom_bar()+
+  labs(x = "month")+
+  ggtitle('每月延遲訂單時間分佈')+
+  theme(plot.title=element_text(family = "STHeiti"))
 ```
-**由上圖可見，3和11月延遲訂單數最多**
+`3和11月延遲訂單數最多`
 
+- 每天的延遲訂單數量
 ```{r}
 
 delay_data  = ORIS %>%
@@ -95,24 +176,14 @@ table(as.numeric(delay_data$month),as.numeric(delay_data$day)) %>%as.data.frame.
 ##畫 類別 然後 有星星的 X 軸是年月日  延遲訂單的天數 預計到達的天數
 
 
-```{r,message=FALSE}
-ORIP = order %>%
-  inner_join(review) %>%
-  inner_join(item) %>%
-  inner_join(product) %>%
-  inner_join(translation) %>%
-  left_join(ORIS,by ="order_id")
-```
-
 ```{r}
-count(ORIP,product_category_name_english,delay) %>%  
+count(ORIS,product_category_name_english,delay) %>%  
   filter(product_category_name_english=='baby')
 ```
 
-###↓↓↓這邊結果不同＠＠
-```{r}
-#sort(table(ORIP$product_category_name_english),decreasing = T)
-ORIP%>%
+### 熱門商品vs.評價?
+```{r,message=FALSE}
+ORIS%>%
   filter(!is.na(delay)) %>%
   group_by(product_category_name_english)%>% 
   summarise(
@@ -124,19 +195,20 @@ ggplot(aes(new_x,ratio)) +
   geom_bar(stat='identity',fill = "steelblue")+ 
   coord_flip()
 
-######
 library(forcats)
 
-ORIP%>%
+ORIS%>%
   group_by(product_category_name_english)%>%
   summarise(n=n()) %>% 
   arrange( desc(n) )%>%
   head(10)%>%
-  inner_join(ORIP)%>%
+  inner_join(ORIS)%>%
   ggplot(aes(fct_rev(fct_infreq (product_category_name_english)),fill=delay)) +
-  geom_bar()+ 
+  geom_bar()+
+  labs(x = " ",y = "Number of order")+
+  ggtitle("商品熱門排行")+
+  theme(plot.title=element_text(family = "STHeiti"))+
   coord_flip()
-
 
 
 ```
@@ -165,7 +237,13 @@ ggplot(aes(binwidth, fill=review_score)) +
               ungroup(),
             aes(y = p, label = scales::percent(p)),
             position = position_stack(vjust = 0.5),
-            show.legend = FALSE)
+            show.legend = FALSE)+
+  labs(x = "delay days",y = "percentage")+
+  ggtitle("延遲送達天數與評分的關係")+
+  theme(plot.title=element_text(family = "STHeiti"))
+
+
+
 ## 
 ORIS_nodelay=ORIS %>%
   filter(delaydays <0)%>%
@@ -182,7 +260,10 @@ ORIS_nodelay%>%
               ungroup(),
             aes(y = p, label = scales::percent(p)),
             position = position_stack(vjust = 0.5),
-            show.legend = FALSE)
+            show.legend = FALSE)+
+  labs(x = "Early delivery days",y = "percentage")+
+  ggtitle("提前送達天數與評分的關係")+
+  theme(plot.title=element_text(family = "STHeiti"))
 
 ```
 
@@ -195,6 +276,16 @@ library(tidyr)
 library(ggplot2)
 library(tm)
 library(wordcloud2)
+```
+
+- 分數分佈
+```{r}
+mean(as.numeric(review$review_score))
+
+review=review[!duplicated(review$review_id),] 
+ggplot(review,aes(x=review_score))+
+  geom_bar()
+
 ```
 
 
@@ -231,9 +322,7 @@ review_tran_conut %>%
   filter(n >200) %>%
   wordcloud2()
 ```
-<<<<<<< HEAD
 
-#draw a texplot wordcloud
 
 ```{r,warning=FALSE}
 #>>>>>>> 20e75f48e910e15b9715e0d79dd2891bbcbfcfc1
@@ -315,26 +404,3 @@ op = options(gvis.plot.tag='chart')
 
 
 
->訂單時間分佈
-
-```{r}
-
-weekday<- weekdays(ORIP$order_purchase_timestamp.x)%>%
-  factor(levels= c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"))
-
-hour<- hour(ORIP$order_purchase_timestamp.x)
-
-dailyOrder <- as.data.frame(table(weekday, hour))
-names(dailyOrder) <- c('Day', 'Hour', 'Freq')
-
-#Plotting the number of orders each day 
-
-ggplot(dailyOrder, aes(x = Hour, y = Freq)) + 
-  geom_line(aes(group = Day, color = Day))+
-  xlab('Hour') + ylab('Number of Order') + 
-  ggtitle('Daily number of Order')
-
-
-```
-
-**訂單分佈在平日的上班時間**
