@@ -319,12 +319,12 @@ op = options(gvis.plot.tag='chart')
 
 ```{r}
 
-ORIP$weekday<- weekdays(ORIP$order_purchase_timestamp.x)%>%
+weekday<- weekdays(ORIP$order_purchase_timestamp.x)%>%
   factor(levels= c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"))
 
-ORIP$hour<- hour(ORIP$order_purchase_timestamp.x)
+hour<- hour(ORIP$order_purchase_timestamp.x)
 
-dailyOrder <- as.data.frame(table(ORIP$weekday, ORIP$hour))
+dailyOrder <- as.data.frame(table(weekday, hour))
 names(dailyOrder) <- c('Day', 'Hour', 'Freq')
 
 #Plotting the number of orders each day 
