@@ -343,10 +343,11 @@ review_tran_conut %>%
 ```{r,warning=FALSE}
 
 
+```
 
-```{r,warning=FALSE}
-#>>>>>>> 20e75f48e910e15b9715e0d79dd2891bbcbfcfc1
->>>>>>> ab32bb583cc87d4bce071a7aa8efed5910221e95
+
+```{r}
+
 library(tm)
 library(stringr)
 dtm =review_tran$translate_message %>% 
@@ -445,3 +446,19 @@ op = options(gvis.plot.tag='chart')
 #  options=list(width=720, height=480) )
 #plot(m1)
 ```
+
+
+#提早到、延遲到兩者在各星等的占比
+```{r}
+ORIS$delay=ORIS$delaydays>0
+
+plot <- ggplot(ORIS, aes(x = ORIS$review_score, fill=ORIS$delay)) +
+        geom_bar()
+plot
+```
+
+#延遲天數與星等關係，看買家容忍範圍
+```{r}
+ggplot(ORIS, aes(x = ORIS$review_score, y =ORIS$delaydays)) +geom_point(size=1)
+```
+
