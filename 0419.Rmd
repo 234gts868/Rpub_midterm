@@ -13,16 +13,41 @@ par(cex=0.8)
 # options(scipen=20, digits=5, width=80)
 if(!require(pacman)) install.packages("pacman")
 ```
+```{r}
+pacman::p_load(readr,dplyr,ggplot2,tidyr,d3heatmap,googleVis,forcats,leaflet,plotly,DT,purrr,tm,stringr,slam,knitr,lubridate,tidytext,data.table,wordcloud2,Rtsne,randomcoloR,shiny)
+```
+
+
 
 ```{r setup, include=FALSE}
-library(knitr); opts_chunk$set(comment = NA)
+library(knitr)
 library(readr)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(d3heatmap)
 library(googleVis)
-options(width=100, gvis.plot.tag='chart', digits=4, scipen=60)
+library(forcats)
+library(leaflet)
+library(plotly)
+library(DT)
+library(purrr)
+library(tm)
+library(stringr)
+library(slam)
+library(lubridate)
+library(tidytext)
+# library(data)
+# library(table)
+library(wordcloud2)
+library(Rtsne)
+library(randomcoloR)
+library(shiny)
+
+```
+
+```{r setup, include=FALSE}
+geolocation<-read.csv("data/olist_geolocation_dataset.csv")
 customer <- read_csv("data/olist_customers_dataset.csv")
 item <- read_csv("data/olist_order_items_dataset.csv")
 review <- read_csv("data/olist_order_reviews_dataset.csv")         
@@ -60,7 +85,6 @@ ORIS = order %>%
 
 - 訂單數量
 ```{r,message=FALSE}
-library(lubridate)
 day=as.Date(order$order_purchase_timestamp)
 hist(day,"month",main ="Number of orders per month",
      las=2,freq=T,xlab='',ylab='count',col ="#ededb1")
@@ -110,7 +134,6 @@ ggplot(dailyOrder, aes(x = Hour, y = Freq)) +
 ```{r,message=FALSE}
 #sort(table(ORIS$product_category_name_english),decreasing = T)
 
-library(forcats)
 
 ORIS%>%
   group_by(product_category_name_english)%>%
@@ -207,7 +230,6 @@ ggplot(aes(new_x,ratio)) +
   geom_bar(stat='identity',fill = "steelblue")+ 
   coord_flip()
 
-library(forcats)
 
 ORIS%>%
   group_by(product_category_name_english)%>%
@@ -294,21 +316,8 @@ install.packages("plotly")
 install.packages("DT")
 
 ```
-```{r}
 
-library(leaflet)
-library(dplyr)
-library(ggplot2)
-library(plotly)
-library(DT)
-```
 
-```{r}
-geolocation<-read.csv("olist_geolocation_dataset.csv")
-item = read.csv("olist_order_items_dataset.csv")
-seller = read.csv("olist_sellers_dataset.csv")
-review = read.csv("olist_order_reviews_dataset.csv")
-```
 
 合併review和items欄位
 
@@ -316,67 +325,39 @@ review = read.csv("olist_order_reviews_dataset.csv")
 
 
 ```{r}
-RI= merge(review,item,by="order_id")
-RI$review_comment_title = NULL
-RI$review_comment_message = NULL
-RI$review_creation_date= NULL
-RI$review_answer_timestamp = NULL
-RI$order_item_id = NULL
-RI$product_id = NULL
-RI$shipping_limit_date = NULL
-RI$price = NULL
-RI$freight_value = NULL
+RI= merge(review,item,by="order_id")%>%
+  select(order_id,review_id,review_score,seller_id)
 ```
 
-```
 
-計算商家評論次數
+計算商家評論次數、計算商家平均分數
 ```{r}
-SRI= RI %>% group_by(seller_id) %>% 
-  summarize(n_distinct(review_id)) %>%
-   merge(seller,by= "seller_id")
-
-
-```
-
-計算商家平均分數
-```{r}
-SRI2= RI %>% group_by(seller_id) %>% 
-  summarise(mean(review_score)) %>%
-  merge(seller,by= "seller_id")
-
-
-  
+SRI= RI %>%
+  na.omit()%>% 
+  group_by(seller_id) %>% 
+  summarize(reviews_times= n_distinct(review_id),average_score =mean(as.numeric(review_score))) %>%
+   merge(seller,by= "seller_id") %>% 
+  rename(zip_code_prefix=seller_zip_code_prefix)
 
 ```
+
+
+
 
 與sellers合併為一新資料框
 
-```{r}
-SRI3 = merge(SRI,SRI2,by="seller_id")
-SRI3$seller_zip_code_prefix.y = NULL
-SRI3$seller_city.y = NULL
-SRI3$seller_state.y = NULL
-colnames(SRI3)[2]="reviews_times"
-colnames(SRI3)[6] = "average_score"
-colnames(SRI3)[3] = "zip_code_prefix"
-colnames(SRI3)[4] = "seller_city"
-colnames(SRI3)[5]="seller_state"
-```
 
 與geolocation合併
 
 ```{r}
 colnames(geolocation)[1] = "zip_code_prefix"
-
+geolocation$zip_code_prefix =as.character(geolocation$zip_code_prefix)
 GSRI3 = geolocation %>%
   group_by(zip_code_prefix) %>%
   summarise(lat =mean(geolocation_lat),lng=mean(geolocation_lng)) %>%
-  inner_join(SRI3,by = "zip_code_prefix")
+  inner_join(SRI,by = "zip_code_prefix")
 ```
-
-
-
+#將評論分數切成數等分
 ```{r}
 
 GSRI3$group <- paste(
@@ -385,34 +366,14 @@ GSRI3$group <- paste(
     
     sep = "<br/>"
 )
-
-```
-
-
-
-
-
-
-```{r}
 GSRI3$score_seg<- cut(GSRI3$average_score ,c(0,1,2,3,4,5))
-
-```
-
-```{r}
 bx <- split(GSRI3 ,GSRI3$score_seg)
 ```
-
-
-```{r}
-
-
-```
-
 
 ```{r}
 library("purrr")
 ```
-
+#化出星等與地圖的關係
 ```{r}
 l <- leaflet() %>% addTiles()
 
@@ -433,26 +394,10 @@ names(bx) %>%
 l %>% addLayersControl(
   overlayGroups = names(bx),
   options = layersControlOptions(collapsed = FALSE) )
-
-
-
 l
 ```
 
 ----延遲訂單------
-
-```{r}
-
-geolocation<-read.csv("olist_geolocation_dataset.csv")
-customer = read.csv("olist_customers_dataset.csv")
-item = read.csv("olist_order_items_dataset.csv")
-payment = read.csv("olist_order_payments_dataset.csv")
-review = read.csv("olist_order_reviews_dataset.csv")
-order = read.csv("olist_orders_dataset.csv")
-product = read.csv("olist_products_dataset.csv")
-seller = read.csv("olist_sellers_dataset.csv")
-
-```
 
 計算出延遲天數
 ```{r}
@@ -490,18 +435,15 @@ geo_late_customer =geolocation %>%
 
 
 ```{r}
-geo_late_customer$order_status = NULL
-geo_late_customer$order_purchase_timestamp = NULL
-geo_late_customer$order_approved_at = NULL
-geo_late_customer$order_delivered_carrier_date = NULL
-geo_late_customer$customer_unique_id = NULL
+
+geo_late_customer = geo_late_customer %>%
+  select(zip_code_prefix,lat,lng,customer_id,order_id,
+         order_estimated_delivery_date,late_time,
+         customer_city,customer_state)
 
 ```
 
-```{r}
-library(purrr)
 
-```
 
 ```{r}
 geo_late_customer$group <- paste(
@@ -512,13 +454,12 @@ geo_late_customer$group <- paste(
 )
 ```
 ```{r}
-as.numeric(geo_late_customer$late_time)
+geo_late_customer$late_time = as.numeric(geo_late_customer$late_time)
 geo_late_customer$late.time<- cut(geo_late_customer$late_time ,c(0,25,50,75,100,125,150,175,200))
-```
 
-```{r}
 bm <- split(geo_late_customer ,geo_late_customer$late.time)
 ```
+
 
 ```{r}
 l <- leaflet() %>% addTiles()
@@ -535,17 +476,12 @@ names(bm) %>%
                 clusterOptions=markerClusterOptions(removeOutsideVisibleBounds=F),
                 labelOptions = labelOptions(noHide=F, direction='auto'))
         })
-```
-
-
-```{r}
 l %>% addLayersControl(
   overlayGroups = names(bm),
   options = layersControlOptions(collapsed = FALSE) )
 ```
 
 
----------------------------------------------------------------------------------
 
 合併賣家與位置
 
@@ -574,25 +510,10 @@ map2 <- leaflet() %>%
              clusterOptions=markerClusterOptions(removeOutsideVisibleBounds=F))
 
   addCircleMarkers(map2,lng=geo_customers$lng,lat=geo_customers$lat,radius=3,weight=1,color="red")
-                    
 
-
-  
-
-  
-
-                
-  
 map2 # 繪製地圖
 ```
-```{r message=FALSE, warning=FALSE}
-library(tidytext)
-library(data.table)
-library(tidyr)
-library(ggplot2)
-library(tm)
-library(wordcloud2)
-```
+
 
 - 分數分佈
 ```{r}
@@ -603,8 +524,6 @@ ggplot(review,aes(x=review_score))+
   geom_bar()
 
 ```
-
-
 - 用出現頻率最高的字 draw a texplot wordcloud
 
 ```{r }
@@ -652,8 +571,6 @@ review_tran_conut %>%
 
 ```{r}
 
-library(tm)
-library(stringr)
 dtm =review_tran$translate_message %>% 
   iconv(to = "utf-8", sub="") %>% 
   str_trim(.) %>%
@@ -668,7 +585,6 @@ dtm  # (documents: 14156, terms: 1030)
 dtm_tmp=dtm
 ```
 ```{r,message=FALSE}
-library(slam)
 tfidf = tapply(dtm$v/row_sums(dtm)[dtm$i], dtm$j, mean) *
   log2(nrow(dtm)/col_sums(dtm > 0))
 summary(tfidf)
@@ -679,7 +595,6 @@ dtm = dtm[,order(-col_sums(dtm))]
 dim(dtm)
 ```
 ```{r}
-library(Rtsne)
 n = 200
 tsne = dtm[, 1:n] %>% as.data.frame.matrix %>% 
   scale %>% t %>% Rtsne(
@@ -694,12 +609,7 @@ g = cutree(hc,K)        # cut into K clusters
 table(g) %>% as.vector %>% sort         # sizes of clusters
 
 ```
-
 ```{r}
-# install.packages('randomcoloR')
-library(randomcoloR)
-library(wordcloud)
-library(slam)
 wc = col_sums(dtm[,1:n])
 colors = distinctColorPalette(K)
 png("./olist.png", width=3200, height=1800)
@@ -711,10 +621,8 @@ textplot(
 dev.off()
 ```
 
-
 ### googlevis
 ```{r plotg0,  results='asis', tidy=FALSE, echo=FALSE}
-library(shiny)
 ORISI  =ORIS %>%
    na.omit() %>%
   inner_join(product,by="product_id") %>%
@@ -723,13 +631,13 @@ ORISI  =ORIS %>%
   summarise(order_n = sum(n()),
             avg_delay = mean(delay),
             avg_delaydays = mean(delaydays),
-            avg_product_length_cm = mean(product_length_cm),
-            avg_product_width_cm = mean(product_width_cm),
-            avg_product_height_cm=mean(product_height_cm),
-            avg_product_weight_g=mean(product_weight_g),
-            avg_product_description_lenght=mean(product_description_lenght),
-            avg_product_photos_qty = mean(product_photos_qty),
-            avg_product_name_lenght =mean(product_name_lenght),
+            avg_product_length_cm = mean(product_length_cm.x),
+            avg_product_width_cm = mean(product_width_cm.x),
+            avg_product_height_cm=mean(product_height_cm.x),
+            avg_product_weight_g=mean(product_weight_g.x),
+            avg_product_description_lenght=mean(product_description_lenght.x),
+            avg_product_photos_qty = mean(product_photos_qty.x),
+            avg_product_name_lenght =mean(product_name_lenght.x),
             # avg_shipping_limit_date=mean(shipping_limit_date),
             avg_review_score=mean(as.numeric(review_score)),
             avg_freight_value=mean(freight_value))
@@ -740,8 +648,8 @@ p = ORISI %>%data.frame()%>%
    "product_category_name_english", "order_purchase_timestamp",
   options=list(width=720, height=480) )
 
-plot(p)
-# options(op)
+# plot(p)
+s# options(op)
   inner_join(translation)
 
 op = options(gvis.plot.tag='chart')
