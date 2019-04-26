@@ -3,14 +3,26 @@ title: "group 14_midterm"
 output: html_document
 ---
 
+```{r results='hide', message=FALSE, warning=FALSE, echo=F}
+# 這些程式碼設定網頁的格式，並安裝、載入一些基本的套件，請大家不要去改動<br>
+rm(list=ls(all=T))
+
+knitr::opts_chunk$set(comment = NA)
+knitr::opts_knit$set(global.par = TRUE)
+par(cex=0.8)
+# options(scipen=20, digits=5, width=80)
+if(!require(pacman)) install.packages("pacman")
+```
+
 ```{r setup, include=FALSE}
+library(knitr); opts_chunk$set(comment = NA)
 library(readr)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(d3heatmap)
 library(googleVis)
-
+options(width=100, gvis.plot.tag='chart', digits=4, scipen=60)
 customer <- read_csv("data/olist_customers_dataset.csv")
 item <- read_csv("data/olist_order_items_dataset.csv")
 review <- read_csv("data/olist_order_reviews_dataset.csv")         
@@ -200,9 +212,9 @@ library(wordcloud2)
 
 - 用出現頻率最高的字 draw a texplot wordcloud
 
-```{r message=FALSE}
+```{r }
 review_tran_m = review_tran %>%
-  select(translate_message)
+  dplyr::select(translate_message)
 
 colnames(review_tran_m) = "text"
 
@@ -231,19 +243,13 @@ review_tran_conut %>%
   filter(n >200) %>%
   wordcloud2()
 ```
-<<<<<<< HEAD
+#針對一顆星的評論做文字圖
 ```{r}
 
 ```
 
 #draw a texplot wordcloud
-```{r}
-=======
-
-
-
 ```{r,warning=FALSE}
->>>>>>> 20e75f48e910e15b9715e0d79dd2891bbcbfcfc1
 library(tm)
 library(stringr)
 dtm =review_tran$translate_message %>% 
@@ -302,18 +308,37 @@ dev.off()
 ```
 
 
-
 ### googlevis
-```{r}
+```{r plotg0,  results='asis', tidy=FALSE, echo=FALSE}
+library(shiny)
 ORISI  =ORIS %>%
-  na.omit() %>%
+   na.omit() %>%
   inner_join(product,by="product_id") %>%
-  inner_join(translation)
-
-op = options(gvis.plot.tag='chart')
-m1 = gvisMotionChart(
-  ORISI, "product_category_name_english", "order_purchase_timestamp",
+  inner_join(translation)%>%
+  group_by(product_category_name_english,order_purchase_timestamp)%>%
+  summarise(order_n = sum(n()),
+            avg_delay = mean(delay),
+            avg_delaydays = mean(delaydays),
+            avg_product_length_cm = mean(product_length_cm),
+            avg_product_width_cm = mean(product_width_cm),
+            avg_product_height_cm=mean(product_height_cm),
+            avg_product_weight_g=mean(product_weight_g),
+            avg_product_description_lenght=mean(product_description_lenght),
+            avg_product_photos_qty = mean(product_photos_qty),
+            avg_product_name_lenght =mean(product_name_lenght),
+            # avg_shipping_limit_date=mean(shipping_limit_date),
+            avg_review_score=mean(as.numeric(review_score)),
+            avg_freight_value=mean(freight_value))
+head(ORISI$product_category_name_english)
+# op = options(gvis.plot.tag='chart')
+p = ORISI %>%data.frame()%>%
+  gvisMotionChart(
+   "product_category_name_english", "order_purchase_timestamp",
   options=list(width=720, height=480) )
-plot(m1)
+
+plot(p)
+# options(op)
 ```
+
+
 
