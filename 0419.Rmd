@@ -57,20 +57,6 @@ hist(day,"month",main ="Number of orders per month",
 - 每日訂單時間分佈
 
 ```{r,message=FALSE}
-
-ggplot(ORIS, aes(as.factor(month(ORIS$order_purchase_timestamp)))) + geom_bar()+
-  labs(x = "month")+
-  ggtitle('每月訂單時間分佈')+
-  theme(plot.title=element_text(family = "STHeiti"))
-
-```
-
-
-
-
-- 每日訂單時間分佈
-
-```{r,message=FALSE}
 Sys.setlocale("LC_TIME", "en_US")
 weekday<- weekdays(order$order_purchase_timestamp)%>%
   factor(levels= c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"))
@@ -176,8 +162,63 @@ table(as.numeric(delay_data$month),as.numeric(delay_data$day)) %>%as.data.frame.
 ```
 
 ## 3 ,11 month delay analysis
+```{r}
+#201711、201802、201803延遲狀況
 
-### 熱門商品vs.評價?
+library(lubridate)
+ORIS$delay=ORIS$delaydays>0   #delay or not   
+ORIS$order_purchase_timestamp=as.Date(ORIS$order_purchase_timestamp,na.rm=TRUE)
+
+ORIS%>%
+  mutate(year = year(order_purchase_timestamp),month = month(order_purchase_timestamp))%>%
+  group_by(month,year)%>%
+  summarise(delay_percent = sum(delay==T)/n()) %>%
+  mutate(year_month = paste(as.character(year), as.character(month)))%>%
+  filter(year_month !="2016 9")%>%
+  ggplot(aes(x=year_month,y=delay_percent))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5, vjust = 0.5))
+
+ratio_delay_201803  =ORIS %>%
+  filter(as.factor(month(order_purchase_timestamp))==3&as.factor(year(order_purchase_timestamp))==2018) %>%
+    group_by(order_purchase_timestamp)%>%
+  summarise(delay_percent = sum(delay==T)/n())
+ratio_delay_201803%>%
+  ggplot(aes(x=order_purchase_timestamp,y=delay_percent))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5, vjust = 0.5))
+
+
+ratio_delay_201802  =ORIS %>%
+  filter(as.factor(month(order_purchase_timestamp))==2&as.factor(year(order_purchase_timestamp))==2018) %>%
+    group_by(order_purchase_timestamp)%>%
+  summarise(delay_percent = sum(delay==T)/n())
+ratio_delay_201802%>%
+  ggplot(aes(x=order_purchase_timestamp,y=delay_percent))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5, vjust = 0.5))
+
+
+ratio_delay_201711  =ORIS %>%
+  filter(as.factor(month(order_purchase_timestamp))==11&as.factor(year(order_purchase_timestamp))==2017) %>%
+    group_by(order_purchase_timestamp)%>%
+  summarise(delay_percent = sum(delay==T)/n())
+ratio_delay_201711%>%
+  ggplot(aes(x=order_purchase_timestamp,y=delay_percent))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5, vjust = 0.5))
+```
+
+```{r}
+#提早到、延遲到佔星等的比率
+ ORIS %>%
+  group_by(review_score)%>%
+  summarise(avg_delay =sum(delay)/n())%>%
+  ggplot(aes(review_score,avg_delay))+
+  geom_bar(stat = "identity")
+```
+
+#### delay商品排行
 ```{r,message=FALSE}
 ORIS%>%
   filter(!is.na(delay)) %>%
@@ -190,21 +231,6 @@ ORIS%>%
 ggplot(aes(new_x,ratio)) +
   geom_bar(stat='identity',fill = "steelblue")+ 
   coord_flip()
-
-
-ORIS%>%
-  group_by(product_category_name_english)%>%
-  summarise(n=n()) %>% 
-  arrange( desc(n) )%>%
-  head(10)%>%
-  inner_join(ORIS)%>%
-  ggplot(aes(fct_rev(fct_infreq (product_category_name_english)),fill=delay)) +
-  geom_bar()+
-  labs(x = " ",y = "Number of order")+
-  ggtitle("商品熱門排行")+
-  theme(plot.title=element_text(family = "STHeiti"))+
-  coord_flip()
-
 
 ```
 
@@ -714,10 +740,6 @@ plot <- ggplot(ORIS, aes(x = ORIS$review_score, fill=ORIS$delay)) +
 plot
 ```
 
-#延遲天數與星等關係，看買家容忍範圍
-```{r}
-ggplot(ORIS, aes(x = ORIS$review_score, y =ORIS$delaydays)) +geom_point(size=1)
-```
 
 ##### A3. Make a Category_Seller Binary Matrix: `mx`
 ```{r}
@@ -731,7 +753,7 @@ dx= dist(mx, "binary")
 hcx = hclust(dx, method="ward.D2")
 par(mar=c(3,3,1,15), cex=0.8)
 dend = as.dendrogram(hcx)  # horizontal dendrogram
-plot(dend,horiz=T)
+#plot(dend,horiz=T)
 ```
 
 ##### A5. Cut tree and make a nice dendrogram
@@ -744,7 +766,7 @@ dend %>% rect.dendrogram(k, horiz=TRUE, border="#C0C0C040", col='#C0C0C040')
 ```
 
 ##### A6. Dimension Reduction by MDS - Multi-Dimension Scaling
-```{r}
+```{r,message=FALSE,include=FALSE}
 # There are many knids of MDS
 # mdx = cmdscale(dx, eig=T)  # classical MDS
 # mdx = isoMDS(dx)           # iso MDS
@@ -774,7 +796,7 @@ category = filter(ORIS, !is.na(product_category_name_english)) %>%
 ##### B2. 總營收最大的20個品類
 ```{r}
 top20 = category$category[1:20]
-category[1:20,]
+#category[1:20,]
 ```
 
 ### 【C】產業經濟應用 
