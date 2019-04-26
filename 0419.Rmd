@@ -510,6 +510,36 @@ review_tran_conut %>%
 #針對一顆星的評論做文字圖
 ```{r}
 
+review_tran_m = review_tran %>%
+  filter(review_score==1)%>%
+  dplyr::select(translate_message)
+
+colnames(review_tran_m) = "text"
+
+data(stop_words) #add stop word
+
+review_tran_conut =review_tran_m%>%
+  filter(!is.na(text))%>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words) %>%
+  count(word,sort=T)
+  
+review_tran_conut$word = removeNumbers(review_tran_conut$word)
+review_tran_conut = review_tran_conut %>% 
+  filter(!word =="")
+
+
+review_tran_conut %>%
+  top_n(10) %>%  # find top 10
+  mutate(word = reorder(word, n)) %>%  
+  ggplot(aes(word, n)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip()
+
+review_tran_conut %>%
+  filter(n >200) %>%
+  wordcloud2()
 ```
 
 #draw a texplot wordcloud
@@ -573,6 +603,68 @@ table(g) %>% as.vector %>% sort         # sizes of clusters
 #   font=2)
 # dev.off()
 ```
+
+
+
+
+```{r}
+reivew_1_score = review_tran %>%
+  filter(review_score==1)
+dtm =reivew_1_score$translate_message %>% 
+  iconv(to = "utf-8", sub="") %>% 
+  str_trim(.) %>%
+  toupper() %>%
+  VectorSource %>% Corpus %>% 
+  tm_map(content_transformer(tolower)) %>% 
+  tm_map(removePunctuation) %>% 
+  tm_map(stemDocument) %>% 
+  DocumentTermMatrix %>% 
+  removeSparseTerms(0.998)
+dtm  # (documents: 14156, terms: 1030)
+dtm_tmp=dtm
+```
+```{r,message=FALSE}
+tfidf = tapply(dtm$v/row_sums(dtm)[dtm$i], dtm$j, mean) *
+  log2(nrow(dtm)/col_sums(dtm > 0))
+summary(tfidf)
+
+dtm=dtm_tmp
+dtm = dtm[, tfidf > 0.24 ]
+dtm = dtm[,order(-col_sums(dtm))]
+dim(dtm)
+```
+```{r}
+n = 200
+tsne = dtm[, 1:n] %>% as.data.frame.matrix %>% 
+  scale %>% t %>% Rtsne(
+    check_duplicates = FALSE, theta=0.0, max_iter=3200)
+```
+
+```{r}
+Y = tsne$Y              # tSNE coordinates
+d = dist(Y)             # distance matrix
+hc = hclust(d)          # hi-clustering
+K = 20              # number of clusters 
+g = cutree(hc,K)        # cut into K clusters
+table(g) %>% as.vector %>% sort         # sizes of clusters
+
+```
+
+```{r}
+# library(gplots)
+library(wordcloud)
+wc = col_sums(dtm[,1:n])
+colors = distinctColorPalette(K)
+png("./olist_1_score.png", width=3200, height=1800)
+textplot(
+  Y[,1], Y[,2], colnames(dtm)[1:n], show=F,
+  col=colors[g],
+  cex= 0.3 + 0.3 * sqrt(wc/mean(wc)),
+  font=2)
+dev.off()
+```
+
+
 
 ### googlevis
 ```{r plotg0,  results='asis', tidy=FALSE, echo=FALSE}
@@ -715,6 +807,25 @@ category = X %>% group_by(product_category_name_english) %>%
 
 ```{r}
 filter(category, totalRev > 100000)[,c(1:4,7,10)]
+```
+
+
+
+```{r}
+a=ORIS %>%
+  group_by(product_category_name_english)%>%
+  summarise(avg_review = mean(as.numeric(review_score)))%>%
+  # arrange(desc(avg_review)) %>%
+  inner_join(category)%>%
+  filter(totalRev > 100000)%>%
+  arrange(desc(top3.con))
+
+
+g=ggplot(a,aes(avg_review,concentrate,col=totalRev))+
+  geom_point(aes(size = 12))+
+  geom_text(aes(label =product_category_name_english),size =3,nudge_x = 0.05,nudge_y = 0.02)
+
+ggplotly(g)
 ```
 
 <br><br><hr>
