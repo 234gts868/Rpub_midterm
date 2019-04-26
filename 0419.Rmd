@@ -281,6 +281,310 @@ ORIS_nodelay%>%
 
 >使用review資料做分析
 
+
+
+-----賣家------
+
+```{r}
+
+install.packages("leaflet")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("plotly")
+install.packages("DT")
+
+```
+```{r}
+
+library(leaflet)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(DT)
+```
+
+```{r}
+geolocation<-read.csv("olist_geolocation_dataset.csv")
+item = read.csv("olist_order_items_dataset.csv")
+seller = read.csv("olist_sellers_dataset.csv")
+review = read.csv("olist_order_reviews_dataset.csv")
+```
+
+合併review和items欄位
+
+
+
+
+```{r}
+RI= merge(review,item,by="order_id")
+RI$review_comment_title = NULL
+RI$review_comment_message = NULL
+RI$review_creation_date= NULL
+RI$review_answer_timestamp = NULL
+RI$order_item_id = NULL
+RI$product_id = NULL
+RI$shipping_limit_date = NULL
+RI$price = NULL
+RI$freight_value = NULL
+```
+
+```
+
+計算商家評論次數
+```{r}
+SRI= RI %>% group_by(seller_id) %>% 
+  summarize(n_distinct(review_id)) %>%
+   merge(seller,by= "seller_id")
+
+
+```
+
+計算商家平均分數
+```{r}
+SRI2= RI %>% group_by(seller_id) %>% 
+  summarise(mean(review_score)) %>%
+  merge(seller,by= "seller_id")
+
+
+  
+
+```
+
+與sellers合併為一新資料框
+
+```{r}
+SRI3 = merge(SRI,SRI2,by="seller_id")
+SRI3$seller_zip_code_prefix.y = NULL
+SRI3$seller_city.y = NULL
+SRI3$seller_state.y = NULL
+colnames(SRI3)[2]="reviews_times"
+colnames(SRI3)[6] = "average_score"
+colnames(SRI3)[3] = "zip_code_prefix"
+colnames(SRI3)[4] = "seller_city"
+colnames(SRI3)[5]="seller_state"
+```
+
+與geolocation合併
+
+```{r}
+colnames(geolocation)[1] = "zip_code_prefix"
+
+GSRI3 = geolocation %>%
+  group_by(zip_code_prefix) %>%
+  summarise(lat =mean(geolocation_lat),lng=mean(geolocation_lng)) %>%
+  inner_join(SRI3,by = "zip_code_prefix")
+```
+
+
+
+```{r}
+
+GSRI3$group <- paste(
+   
+    sprintf("Stars:%.1f, Reviews:%.1f", GSRI3$average_score, GSRI3$reviews_times),
+    
+    sep = "<br/>"
+)
+
+```
+
+
+
+
+
+
+```{r}
+GSRI3$score_seg<- cut(GSRI3$average_score ,c(0,1,2,3,4,5))
+
+```
+
+```{r}
+bx <- split(GSRI3 ,GSRI3$score_seg)
+```
+
+
+```{r}
+
+
+```
+
+
+```{r}
+library("purrr")
+```
+
+```{r}
+l <- leaflet() %>% addTiles()
+
+names(bx) %>% 
+    walk(function(df){
+        l <<- l %>% 
+            addMarkers(data=bx[[df]], 
+                lng=~lng,
+                lat=~lat,
+                
+                popup=~group,
+                group = df,
+               
+                clusterOptions=markerClusterOptions(removeOutsideVisibleBounds=F),
+                labelOptions = labelOptions(noHide=F, direction='auto'))
+        })
+
+l %>% addLayersControl(
+  overlayGroups = names(bx),
+  options = layersControlOptions(collapsed = FALSE) )
+
+
+
+l
+```
+
+----延遲訂單------
+
+```{r}
+
+geolocation<-read.csv("olist_geolocation_dataset.csv")
+customer = read.csv("olist_customers_dataset.csv")
+item = read.csv("olist_order_items_dataset.csv")
+payment = read.csv("olist_order_payments_dataset.csv")
+review = read.csv("olist_order_reviews_dataset.csv")
+order = read.csv("olist_orders_dataset.csv")
+product = read.csv("olist_products_dataset.csv")
+seller = read.csv("olist_sellers_dataset.csv")
+
+```
+
+計算出延遲天數
+```{r}
+order$late_time=difftime(as.Date(order$order_delivered_customer_date,na.rm=TRUE),as.Date(order$order_estimated_delivery_date,na.rm=TRUE),units = "days")
+```
+
+篩選出延遲訂單
+```{r}
+late_order = filter(order, late_time >0)
+```
+
+合併客戶與延遲訂單
+```{r}
+late_customer = merge(late_order,customer,by="customer_id")
+
+colnames(late_customer)[11]="zip_code_prefix"
+colnames(geolocation)[1]="zip_code_prefix"
+```
+
+```{r}
+#seller geolocation
+geolocation %>%
+  group_by(zip_code_prefix) %>%
+  summarise(lat =mean(geolocation_lat),lng=mean(geolocation_lng)) %>%
+  inner_join(late_customer,by = "zip_code_prefix")
+```
+
+合併客戶延遲訂單與地理位置
+```{r}
+geo_late_customer =geolocation %>%
+  group_by(zip_code_prefix) %>%
+  summarise(lat =mean(geolocation_lat),lng=mean(geolocation_lng)) %>%
+  inner_join(late_customer,by = "zip_code_prefix")
+```
+
+
+```{r}
+geo_late_customer$order_status = NULL
+geo_late_customer$order_purchase_timestamp = NULL
+geo_late_customer$order_approved_at = NULL
+geo_late_customer$order_delivered_carrier_date = NULL
+geo_late_customer$customer_unique_id = NULL
+
+```
+
+```{r}
+library(purrr)
+
+```
+
+```{r}
+geo_late_customer$group <- paste(
+   
+    sprintf("LateDays:%.1f", geo_late_customer$late_time),
+   
+    sep = "<br/>"
+)
+```
+```{r}
+as.numeric(geo_late_customer$late_time)
+geo_late_customer$late.time<- cut(geo_late_customer$late_time ,c(0,25,50,75,100,125,150,175,200))
+```
+
+```{r}
+bm <- split(geo_late_customer ,geo_late_customer$late.time)
+```
+
+```{r}
+l <- leaflet() %>% addTiles()
+
+names(bm) %>% 
+    walk(function(df){
+        l <<- l %>% 
+            addMarkers(data=bm[[df]], 
+                lng=~lng, 
+                lat=~lat,
+                
+                popup=~group,
+                group = df,
+                clusterOptions=markerClusterOptions(removeOutsideVisibleBounds=F),
+                labelOptions = labelOptions(noHide=F, direction='auto'))
+        })
+```
+
+
+```{r}
+l %>% addLayersControl(
+  overlayGroups = names(bm),
+  options = layersControlOptions(collapsed = FALSE) )
+```
+
+
+---------------------------------------------------------------------------------
+
+合併賣家與位置
+
+```{r}
+colnames(seller)[2]="zip_code_prefix"
+colnames(customer)[3]="zip_code_prefix"
+
+geo_sellers =geolocation %>%
+  group_by(zip_code_prefix) %>%
+  summarise(lat =mean(geolocation_lat),lng=mean(geolocation_lng)) %>%
+  inner_join(seller,by = "zip_code_prefix")
+
+geo_customers =geolocation %>%
+  group_by(zip_code_prefix) %>%
+  summarise(lat =mean(geolocation_lat),lng=mean(geolocation_lng)) %>%
+  inner_join(customer,by = "zip_code_prefix")
+
+```
+
+畫出賣家分布
+```{r}
+map2 <- leaflet() %>%
+  addTiles() %>%  # 加上預設的地圖資料
+  
+  addMarkers(lng=geo_sellers$lng, lat=geo_sellers$lat ,
+             clusterOptions=markerClusterOptions(removeOutsideVisibleBounds=F))
+
+  addCircleMarkers(map2,lng=geo_customers$lng,lat=geo_customers$lat,radius=3,weight=1,color="red")
+                    
+
+
+  
+
+  
+
+                
+  
+map2 # 繪製地圖
+```
 ```{r message=FALSE, warning=FALSE}
 library(tidytext)
 library(data.table)
