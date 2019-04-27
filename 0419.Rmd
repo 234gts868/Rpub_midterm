@@ -883,3 +883,48 @@ use 1+log transformation and reverse color scheme
 ```{r fig.height=15, fig.width=7}
 -log(1+mx) %>% as.data.frame.matrix %>% d3heatmap()
 ```
+
+
+####distance
+```{r}
+colnames(seller)[2] ="s_zip"
+colnames(geolocation)[1] ="s_zip"
+ 
+
+GS = seller %>%
+    inner_join(geolocation)%>%
+  group_by(seller_id)%>%
+  summarise(geolocation_lat_s = mean(geolocation_lat),geolocation_lng_s=mean(geolocation_lng)) 
+  
+
+colnames(customer)[3 ] ="c_zip"
+colnames(geolocation)[1] ="c_zip"
+
+GC = customer %>%
+  inner_join(geolocation)%>%
+  group_by(customer_id)%>%
+  summarise(geolocation_lat_c = mean(geolocation_lat),geolocation_lng_c=mean(geolocation_lng))
+
+
+```
+
+```{r}
+ORIS=ORIS %>% inner_join(GC) %>% inner_join(GS) 
+
+ORIS=ORIS %>% 
+group_by(order_id)%>%
+  summarise(distance = sqrt(((mean(geolocation_lat_c)-mean(geolocation_lat_s))**2) + ((mean(geolocation_lng_c)-mean(geolocation_lng_s))**2))) %>% 
+  arrange(desc(distance)) %>% inner_join(ORIS)
+
+
+
+k=ORIS %>% 
+  #filter(review_score=="1"|review_score=="2") %>%
+  ggplot(aes(distance,delaydays,col=review_score))+
+  geom_point(aes(size = 5),alpha=0.6) 
+
+ggplotly(k)
+```
+
+
+
